@@ -1,0 +1,10 @@
+{
+  "createdAt": "2026-10-12T16:38:55.257Z",
+  "database": "live-arena.sqlite",
+  "sanitizedHistory": true,
+  "files": {
+    "audio": 14,
+    "characters": 0,
+    "gifts": 0
+  }
+}
