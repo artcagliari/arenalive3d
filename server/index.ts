@@ -11,7 +11,8 @@ import { Server } from 'socket.io';
 import { z } from 'zod';
 import { ArenaEngine } from './engine.js';
 import { Store } from './store.js';
-import { TikTokAdapter } from './tiktok.js';
+import { suggestGiftIds, TikTokAdapter } from './tiktok.js';
+import { validateGiftRegistry } from './gift-registry.js';
 import type { OverlayTelemetry, SystemDiagnostics } from '../src/types.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -34,8 +35,27 @@ if (adminToken === 'arena-local-demo') {
 
 const store = new Store(databasePath);
 // AUDIO_SAFE_MODE: silêncio absoluto ao iniciar. Só AUDIO_SAFE_MODE=false no .env muda isso.
-const engine = new ArenaEngine(store, { audioSafeMode: process.env.AUDIO_SAFE_MODE !== 'false' });
-let adapter = new TikTokAdapter(engine, process.env.TIKTOK_USERNAME ?? '');
+// AUTO_RACE (padrão ligado): a corrida roda sozinha e continuamente, sem painel nem aba aberta.
+const autoRace = process.env.AUTO_RACE !== 'false';
+if (autoRace) {
+  // Uma única vez: rodada de até 5 min, resultado por 10 s e reinício logo em seguida.
+  store.applyOnce('auto_race_5min_defaults', current => ({ ...current, autoMode: true, gameMode: 'race', raceDurationSec: 300,
+    roundDurationSec: 300, resultsDurationSec: 10, intermissionDurationSec: 2, openingDurationSec: 5 }));
+}
+// Uma única vez: comandos só com o número (13 / 22), sem nomes, para evitar restrições da plataforma.
+store.applyOnce('number_only_commands', current => ({ ...current, lulaKeyword: '13', bolsonaroKeyword: '22',
+  lulaCommandLabel: '13 PARA CORRER', bolsonaroCommandLabel: '22 PARA CORRER' }));
+store.renameBuiltinAudioSlots();
+const engine = new ArenaEngine(store, { audioSafeMode: process.env.AUDIO_SAFE_MODE !== 'false', alwaysOn: autoRace, autoEvents: process.env.AUTO_RACE_EVENTS === 'true' });
+if (ArenaEngine.activeEngines() !== 1) throw new Error('Mais de um motor de corrida ativo no processo.');
+// Um único listener por processo (e por sala, via lease no SQLite). /api/tiktok/connect é idempotente.
+let adapter = new TikTokAdapter(engine, store, process.env.TIKTOK_USERNAME ?? '');
+let adapterLock: Promise<unknown> = Promise.resolve();
+const withAdapterLock = <T,>(task: () => Promise<T>): Promise<T> => {
+  const run = adapterLock.then(task, task);
+  adapterLock = run.catch(() => undefined);
+  return run;
+};
 
 const app = express();
 const server = createServer(app);
@@ -464,7 +484,7 @@ app.post('/api/control/:action', requireAdmin, async (req, res) => {
     else if (action === 'finish') engine.finish();
     else if (action === 'stop-cycle') engine.stopCycle();
     else if (action === 'reset') engine.resetScore();
-    else if (action === 'emergency') { engine.emergencyStop(String(req.body?.reason ?? 'Acionada pelo operador')); await adapter.stop(); }
+    else if (action === 'emergency') { engine.emergencyStop(String(req.body?.reason ?? 'Acionada pelo operador')); await withAdapterLock(() => adapter.stop()); }
     else if (action === 'release-emergency') engine.releaseEmergency();
     else return res.status(404).json({ error: 'Ação desconhecida.' });
     res.json(engine.getState());
@@ -553,7 +573,14 @@ app.patch('/api/gifts/:id', requireAdmin, (req, res) => {
   for (const key of Object.keys((req.body ?? {}) as Record<string, unknown>)) if (key in validated) patch[key] = validated[key];
   if ('tiktokGiftId' in patch) patch.tiktokGiftId = patch.tiktokGiftId || null;
   const { imageUrl: _ignored, ...base } = existing;
-  store.saveGift({ ...base, ...patch } as typeof base);
+  const merged = { ...base, ...patch } as typeof base;
+  if ('tiktokGiftId' in patch && merged.tiktokGiftId) {
+    // O ID do TikTok identifica um presente: não pode repetir no par nem em outro presente cadastrado.
+    const after = store.raceGifts().map(gift => gift.id === merged.id ? { ...gift, tiktokGiftId: merged.tiktokGiftId } : gift);
+    const conflict = validateGiftRegistry(after).find(problem => problem.type !== 'custo_diferente' && problem.gifts.includes(merged.id));
+    if (conflict) return res.status(409).json({ error: `ID do TikTok já usado: ${conflict.detail}.` });
+  }
+  store.saveGift(merged);
   engine.giftsChanged();
   res.json(store.raceGift(existing.id));
 });
@@ -629,17 +656,55 @@ app.post('/api/audio/trigger', requireAdmin, (req, res) => {
 });
 
 app.post('/api/tiktok/connect', requireAdmin, async (req, res) => {
-  const parsed = z.object({ username: z.string().trim().min(2).max(80).transform(value => value.replace(/^@/, '')) }).safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Informe o nome de usuário do TikTok.' });
-  await adapter.stop(false);
-  adapter = new TikTokAdapter(engine, parsed.data.username);
-  void adapter.start();
-  res.json({ ok: true, status: 'connecting' });
+  const parsed = z.object({ username: z.string().trim().max(80).transform(value => value.replace(/^@/, '')).optional() }).safeParse(req.body ?? {});
+  const username = (parsed.success && parsed.data.username) || process.env.TIKTOK_USERNAME?.replace(/^@/, '').trim() || '';
+  if (!parsed.success || username.length < 2) return res.status(400).json({ error: 'Informe o nome de usuário do TikTok ou defina TIKTOK_USERNAME.' });
+  await withAdapterLock(async () => {
+    if (adapter.running && adapter.currentUsername.toLowerCase() === username.toLowerCase()) return;
+    await adapter.stop(false);
+    adapter = new TikTokAdapter(engine, store, username);
+    void adapter.start();
+  });
+  res.json({ ok: true, status: engine.getState().connector.status, listener: adapter.snapshot() });
 });
 
 app.post('/api/tiktok/disconnect', requireAdmin, async (_req, res) => {
-  await adapter.stop();
+  await withAdapterLock(() => adapter.stop());
   res.json({ ok: true });
+});
+
+app.get('/api/tiktok/status', requireAdmin, (_req, res) => {
+  const registry = store.raceGifts();
+  res.json({ connector: engine.getState().connector, listener: adapter.snapshot(), pendingGifts: store.pendingGiftSummary(),
+    registry: { gifts: registry.length, withTikTokId: registry.filter(gift => gift.tiktokGiftId).length, problems: validateGiftRegistry(registry) },
+    note: 'Conector não oficial (tiktok-live-connector); pode falhar por mudanças do TikTok.' });
+});
+
+app.get('/api/tiktok/gifts', requireAdmin, (req, res) => {
+  const limit = Number(req.query.limit ?? 100) || 100;
+  res.json({ history: store.giftLog(limit, req.query.pending === '1'), pending: store.pendingGiftSummary() });
+});
+
+/** Sugestões por nome idêntico no catálogo da sala. Nada é aplicado sem POST explícito. */
+app.get('/api/tiktok/catalog', requireAdmin, (_req, res) => {
+  const catalog = adapter.getCatalog();
+  res.json({ catalogSize: catalog.length, suggestions: suggestGiftIds(store.raceGifts(), catalog) });
+});
+
+app.post('/api/tiktok/catalog/apply', requireAdmin, (_req, res) => {
+  const applied: Array<{ registryId: string; name: string; giftId: string }> = [];
+  for (const item of suggestGiftIds(store.raceGifts(), adapter.getCatalog())) {
+    if (!item.suggestedGiftId || item.currentGiftId) continue;
+    const existing = store.raceGift(item.registryId);
+    if (!existing) continue;
+    const after = store.raceGifts().map(gift => gift.id === existing.id ? { ...gift, tiktokGiftId: item.suggestedGiftId } : gift);
+    if (validateGiftRegistry(after).some(problem => problem.type !== 'custo_diferente' && problem.gifts.includes(existing.id))) continue;
+    const { imageUrl: _ignored, ...base } = existing;
+    store.saveGift({ ...base, tiktokGiftId: item.suggestedGiftId, note: `${base.note} ID ${item.suggestedGiftId} obtido do catálogo do TikTok em ${new Date().toISOString().slice(0, 10)} por nome idêntico.`.trim() });
+    applied.push({ registryId: item.registryId, name: item.name, giftId: item.suggestedGiftId });
+  }
+  engine.giftsChanged();
+  res.json({ ok: true, applied });
 });
 
 io.on('connection', socket => {
@@ -687,9 +752,9 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
 server.listen(port, host, () => {
   console.log(`LIVE ARENA 3D em http://${host}:${port}`);
   store.log('info', 'Servidor iniciado', { host, port, remoteAccess });
-  if (process.env.TIKTOK_AUTO_CONNECT === 'true') void adapter.start();
+  if (process.env.TIKTOK_AUTO_CONNECT === 'true') void withAdapterLock(() => adapter.start());
   else engine.setConnector(process.env.TIKTOK_USERNAME ? 'disconnected' : 'disabled', process.env.TIKTOK_USERNAME ? 'Pronto para conexão manual' : 'Conector não configurado', process.env.TIKTOK_USERNAME ?? null);
-  engine.ensureAutomaticCycle();
+  engine.bootAutomation();
 });
 
 let shuttingDown = false;

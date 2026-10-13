@@ -9,8 +9,8 @@ export const DEFAULT_CONFIG: ArenaConfig = {
   openingDurationSec: 5,
   resultsDurationSec: 10,
   intermissionDurationSec: 6,
-  lulaKeyword: '13, LULA',
-  bolsonaroKeyword: '22, BOLSONARO',
+  lulaKeyword: '13',
+  bolsonaroKeyword: '22',
   lulaGiftId: '',
   bolsonaroGiftId: '',
   commentPoints: 1,
@@ -37,8 +37,8 @@ export const DEFAULT_CONFIG: ArenaConfig = {
   raceEventFrequency: 3,
   commentBoost: 18,
   giftBoost: 100,
-  lulaCommandLabel: 'DIGITE 13 PARA LULA CORRER',
-  bolsonaroCommandLabel: 'DIGITE 22 PARA BOLSONARO CORRER',
+  lulaCommandLabel: '13 PARA CORRER',
+  bolsonaroCommandLabel: '22 PARA CORRER',
   runnerStyle: 'cartoon',
   powerShortcuts: { impulso: 'COMENTE {n}', arrancada: 'AUTOMÁTICO', turbo: 'PRESENTE', escudo: 'AUTOMÁTICO', tropeco: 'AUTOMÁTICO' },
   musicEnabled: false,
@@ -49,6 +49,14 @@ export const DEFAULT_CONFIG: ArenaConfig = {
   maxCatchphraseDurationSec:3,
   channelPriorities:{music:10,voice:60,sfx:40,priority:100}
 };
+
+export interface GiftLogEntry {
+  id?: number; at: string; roomId?: string | null; giftId: string; giftName?: string | null; giftType?: number | null;
+  repeatCount: number; sender?: string | null; groupId?: string | null; msgId?: string | null;
+  status: 'aplicado' | 'pendente' | 'fora_da_rodada' | 'descartado';
+  registryId?: string | null; registryName?: string | null; runner?: string | null; effect?: string | null;
+  detail?: string | null; reason?: string | null;
+}
 
 export class Store {
   private db: Database.Database;
@@ -115,10 +123,35 @@ export class Store {
         note TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL
       );
     `);
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS tiktok_gift_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, room_id TEXT, gift_id TEXT NOT NULL, gift_name TEXT,
+        gift_type INTEGER, repeat_count INTEGER NOT NULL DEFAULT 1, sender TEXT, group_id TEXT, msg_id TEXT,
+        status TEXT NOT NULL, registry_id TEXT, registry_name TEXT, runner TEXT, effect TEXT, detail TEXT, reason TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_tiktok_gift_log_gift ON tiktok_gift_log(gift_id);
+      CREATE TABLE IF NOT EXISTS listener_lease (
+        room_key TEXT PRIMARY KEY, owner TEXT NOT NULL, expires_at INTEGER NOT NULL
+      );
+    `);
     this.seedAudioLibrary();
     this.seedGifts();
     this.applyStage614Defaults();
     this.applyStage6143Defaults();
+  }
+
+  /** Executa `apply` uma única vez por chave, registrando a marca em `settings`. */
+  applyOnce(key: string, apply: (current: ArenaConfig) => ArenaConfig): boolean {
+    if (this.db.prepare('SELECT 1 FROM settings WHERE key=?').get(key)) return false;
+    this.saveConfig(apply(this.getConfig()));
+    this.db.prepare("INSERT INTO settings(key,value) VALUES(?,'applied')").run(key);
+    return true;
+  }
+
+  /** Troca os nomes de personagem pelos números nos nomes das vagas de bordão (idempotente). */
+  renameBuiltinAudioSlots() {
+    this.db.prepare(`UPDATE audio_assets SET name = REPLACE(REPLACE(name, 'de Lula', 'do 13'), 'de Bolsonaro', 'do 22')
+      WHERE id LIKE 'slot-lula-%' OR id LIKE 'slot-bolsonaro-%'`).run();
   }
 
   /** Migração única: ativa o ciclo local e unifica cronômetro e motor. */
@@ -254,16 +287,16 @@ export class Store {
       { id:'builtin-final-sprint', name:'Reta final', category:'crowd', trigger:'final_sprint', candidate:null, sourceType:'synth', fileName:null, mimeType:null, synthPreset:'crowd', volume:72, enabled:true, maxFrequencySec:8, playMode:'sequential', isSatire:false, licenseNote:'Ruído de torcida procedural original, sem vozes identificáveis.', animation:'crowd_lights', priority:86 },
       // Vagas de bordão: ficam sem arquivo e desativadas até o operador enviar
       // um áudio próprio. Nenhum som é inventado e nada entra no overlay vazio.
-      { id:'slot-lula-largada', name:'Bordão de Lula na largada', category:'lula_catchphrase', trigger:'race_start', candidate:'lula', sourceType:'upload', fileName:null, mimeType:null, synthPreset:null, volume:80, enabled:false, maxFrequencySec:20, playMode:'random', isSatire:true, licenseNote:'Vaga livre: envie gravação própria, paródia ou áudio licenciado.', animation:'camera_flash', priority:70 },
-      { id:'slot-lula-impulso', name:'Bordão de Lula no impulso', category:'lula_catchphrase', trigger:'boost', candidate:'lula', sourceType:'upload', fileName:null, mimeType:null, synthPreset:null, volume:80, enabled:false, maxFrequencySec:15, playMode:'random', isSatire:true, licenseNote:'Vaga livre: envie gravação própria, paródia ou áudio licenciado.', animation:'speed_lines', priority:68 },
-      { id:'slot-lula-vitoria', name:'Bordão de Lula na vitória', category:'lula_catchphrase', trigger:'victory', candidate:'lula', sourceType:'upload', fileName:null, mimeType:null, synthPreset:null, volume:84, enabled:false, maxFrequencySec:10, playMode:'random', isSatire:true, licenseNote:'Vaga livre: envie gravação própria, paródia ou áudio licenciado.', animation:'victory_lights', priority:99 },
-      { id:'slot-lula-ultrapassagem', name:'Bordão de Lula na ultrapassagem', category:'lula_catchphrase', trigger:'overtake', candidate:'lula', sourceType:'upload', fileName:null, mimeType:null, synthPreset:null, volume:80, enabled:false, maxFrequencySec:15, playMode:'random', isSatire:true, licenseNote:'Vaga livre: envie gravação própria, paródia ou áudio licenciado.', animation:'speed_lines', priority:74 },
-      { id:'slot-lula-meme', name:'Meme satírico de Lula', category:'lula_catchphrase', trigger:'stumble', candidate:'lula', sourceType:'upload', fileName:null, mimeType:null, synthPreset:null, volume:76, enabled:false, maxFrequencySec:20, playMode:'random', isSatire:true, licenseNote:'Vaga livre: envie gravação própria, paródia ou áudio licenciado.', animation:'impact_burst', priority:64 },
-      { id:'slot-bolsonaro-largada', name:'Bordão de Bolsonaro na largada', category:'bolsonaro_catchphrase', trigger:'race_start', candidate:'bolsonaro', sourceType:'upload', fileName:null, mimeType:null, synthPreset:null, volume:80, enabled:false, maxFrequencySec:20, playMode:'random', isSatire:true, licenseNote:'Vaga livre: envie gravação própria, paródia ou áudio licenciado.', animation:'camera_flash', priority:70 },
-      { id:'slot-bolsonaro-impulso', name:'Bordão de Bolsonaro no impulso', category:'bolsonaro_catchphrase', trigger:'boost', candidate:'bolsonaro', sourceType:'upload', fileName:null, mimeType:null, synthPreset:null, volume:80, enabled:false, maxFrequencySec:15, playMode:'random', isSatire:true, licenseNote:'Vaga livre: envie gravação própria, paródia ou áudio licenciado.', animation:'speed_lines', priority:68 },
-      { id:'slot-bolsonaro-vitoria', name:'Bordão de Bolsonaro na vitória', category:'bolsonaro_catchphrase', trigger:'victory', candidate:'bolsonaro', sourceType:'upload', fileName:null, mimeType:null, synthPreset:null, volume:84, enabled:false, maxFrequencySec:10, playMode:'random', isSatire:true, licenseNote:'Vaga livre: envie gravação própria, paródia ou áudio licenciado.', animation:'victory_lights', priority:99 },
-      { id:'slot-bolsonaro-ultrapassagem', name:'Bordão de Bolsonaro na ultrapassagem', category:'bolsonaro_catchphrase', trigger:'overtake', candidate:'bolsonaro', sourceType:'upload', fileName:null, mimeType:null, synthPreset:null, volume:80, enabled:false, maxFrequencySec:15, playMode:'random', isSatire:true, licenseNote:'Vaga livre: envie gravação própria, paródia ou áudio licenciado.', animation:'speed_lines', priority:74 },
-      { id:'slot-bolsonaro-meme', name:'Meme satírico de Bolsonaro', category:'bolsonaro_catchphrase', trigger:'stumble', candidate:'bolsonaro', sourceType:'upload', fileName:null, mimeType:null, synthPreset:null, volume:76, enabled:false, maxFrequencySec:20, playMode:'random', isSatire:true, licenseNote:'Vaga livre: envie gravação própria, paródia ou áudio licenciado.', animation:'impact_burst', priority:64 },
+      { id:'slot-lula-largada', name:'Bordão do 13 na largada', category:'lula_catchphrase', trigger:'race_start', candidate:'lula', sourceType:'upload', fileName:null, mimeType:null, synthPreset:null, volume:80, enabled:false, maxFrequencySec:20, playMode:'random', isSatire:true, licenseNote:'Vaga livre: envie gravação própria, paródia ou áudio licenciado.', animation:'camera_flash', priority:70 },
+      { id:'slot-lula-impulso', name:'Bordão do 13 no impulso', category:'lula_catchphrase', trigger:'boost', candidate:'lula', sourceType:'upload', fileName:null, mimeType:null, synthPreset:null, volume:80, enabled:false, maxFrequencySec:15, playMode:'random', isSatire:true, licenseNote:'Vaga livre: envie gravação própria, paródia ou áudio licenciado.', animation:'speed_lines', priority:68 },
+      { id:'slot-lula-vitoria', name:'Bordão do 13 na vitória', category:'lula_catchphrase', trigger:'victory', candidate:'lula', sourceType:'upload', fileName:null, mimeType:null, synthPreset:null, volume:84, enabled:false, maxFrequencySec:10, playMode:'random', isSatire:true, licenseNote:'Vaga livre: envie gravação própria, paródia ou áudio licenciado.', animation:'victory_lights', priority:99 },
+      { id:'slot-lula-ultrapassagem', name:'Bordão do 13 na ultrapassagem', category:'lula_catchphrase', trigger:'overtake', candidate:'lula', sourceType:'upload', fileName:null, mimeType:null, synthPreset:null, volume:80, enabled:false, maxFrequencySec:15, playMode:'random', isSatire:true, licenseNote:'Vaga livre: envie gravação própria, paródia ou áudio licenciado.', animation:'speed_lines', priority:74 },
+      { id:'slot-lula-meme', name:'Meme satírico do 13', category:'lula_catchphrase', trigger:'stumble', candidate:'lula', sourceType:'upload', fileName:null, mimeType:null, synthPreset:null, volume:76, enabled:false, maxFrequencySec:20, playMode:'random', isSatire:true, licenseNote:'Vaga livre: envie gravação própria, paródia ou áudio licenciado.', animation:'impact_burst', priority:64 },
+      { id:'slot-bolsonaro-largada', name:'Bordão do 22 na largada', category:'bolsonaro_catchphrase', trigger:'race_start', candidate:'bolsonaro', sourceType:'upload', fileName:null, mimeType:null, synthPreset:null, volume:80, enabled:false, maxFrequencySec:20, playMode:'random', isSatire:true, licenseNote:'Vaga livre: envie gravação própria, paródia ou áudio licenciado.', animation:'camera_flash', priority:70 },
+      { id:'slot-bolsonaro-impulso', name:'Bordão do 22 no impulso', category:'bolsonaro_catchphrase', trigger:'boost', candidate:'bolsonaro', sourceType:'upload', fileName:null, mimeType:null, synthPreset:null, volume:80, enabled:false, maxFrequencySec:15, playMode:'random', isSatire:true, licenseNote:'Vaga livre: envie gravação própria, paródia ou áudio licenciado.', animation:'speed_lines', priority:68 },
+      { id:'slot-bolsonaro-vitoria', name:'Bordão do 22 na vitória', category:'bolsonaro_catchphrase', trigger:'victory', candidate:'bolsonaro', sourceType:'upload', fileName:null, mimeType:null, synthPreset:null, volume:84, enabled:false, maxFrequencySec:10, playMode:'random', isSatire:true, licenseNote:'Vaga livre: envie gravação própria, paródia ou áudio licenciado.', animation:'victory_lights', priority:99 },
+      { id:'slot-bolsonaro-ultrapassagem', name:'Bordão do 22 na ultrapassagem', category:'bolsonaro_catchphrase', trigger:'overtake', candidate:'bolsonaro', sourceType:'upload', fileName:null, mimeType:null, synthPreset:null, volume:80, enabled:false, maxFrequencySec:15, playMode:'random', isSatire:true, licenseNote:'Vaga livre: envie gravação própria, paródia ou áudio licenciado.', animation:'speed_lines', priority:74 },
+      { id:'slot-bolsonaro-meme', name:'Meme satírico do 22', category:'bolsonaro_catchphrase', trigger:'stumble', candidate:'bolsonaro', sourceType:'upload', fileName:null, mimeType:null, synthPreset:null, volume:76, enabled:false, maxFrequencySec:20, playMode:'random', isSatire:true, licenseNote:'Vaga livre: envie gravação própria, paródia ou áudio licenciado.', animation:'impact_burst', priority:64 },
       { id:'slot-meme-ultrapassagem', name:'Provocação na ultrapassagem', category:'satire_meme', trigger:'overtake', candidate:null, sourceType:'upload', fileName:null, mimeType:null, synthPreset:null, volume:78, enabled:false, maxFrequencySec:18, playMode:'random', isSatire:true, licenseNote:'Vaga livre: envie gravação própria, paródia ou áudio licenciado.', animation:'speed_lines', priority:66 },
       { id:'slot-meme-tropeco', name:'Provocação no tropeço', category:'satire_meme', trigger:'stumble', candidate:null, sourceType:'upload', fileName:null, mimeType:null, synthPreset:null, volume:78, enabled:false, maxFrequencySec:18, playMode:'random', isSatire:true, licenseNote:'Vaga livre: envie gravação própria, paródia ou áudio licenciado.', animation:'impact_burst', priority:66 },
       { id:'slot-meme-turbo', name:'Provocação no turbo', category:'satire_meme', trigger:'special', candidate:null, sourceType:'upload', fileName:null, mimeType:null, synthPreset:null, volume:78, enabled:false, maxFrequencySec:18, playMode:'random', isSatire:true, licenseNote:'Vaga livre: envie gravação própria, paródia ou áudio licenciado.', animation:'special_burst', priority:66 },
@@ -323,6 +356,45 @@ export class Store {
   recentEvents(limit = 100): PublicEvent[] {
     return this.db.prepare(`SELECT id, at, source, type, candidate, points, username, summary FROM events ORDER BY id DESC LIMIT ?`)
       .all(Math.min(Math.max(limit, 1), 500)) as PublicEvent[];
+  }
+
+  /** Histórico de presentes REAIS recebidos do TikTok (simulações nunca entram aqui). */
+  addGiftLog(entry: GiftLogEntry): number {
+    const result = this.db.prepare(`INSERT INTO tiktok_gift_log(at,room_id,gift_id,gift_name,gift_type,repeat_count,sender,group_id,msg_id,status,registry_id,registry_name,runner,effect,detail,reason)
+      VALUES(@at,@roomId,@giftId,@giftName,@giftType,@repeatCount,@sender,@groupId,@msgId,@status,@registryId,@registryName,@runner,@effect,@detail,@reason)`).run({
+        roomId: null, giftName: null, giftType: null, sender: null, groupId: null, msgId: null, registryId: null,
+        registryName: null, runner: null, effect: null, detail: null, reason: null, ...entry });
+    this.db.prepare('DELETE FROM tiktok_gift_log WHERE id <= ?').run(Number(result.lastInsertRowid) - 2000);
+    return Number(result.lastInsertRowid);
+  }
+
+  giftLog(limit = 100, onlyPending = false): GiftLogEntry[] {
+    return this.db.prepare(`SELECT id,at,room_id AS roomId,gift_id AS giftId,gift_name AS giftName,gift_type AS giftType,repeat_count AS repeatCount,
+      sender,group_id AS groupId,msg_id AS msgId,status,registry_id AS registryId,registry_name AS registryName,runner,effect,detail,reason
+      FROM tiktok_gift_log ${onlyPending ? "WHERE status='pendente'" : ''} ORDER BY id DESC LIMIT ?`)
+      .all(Math.min(Math.max(limit, 1), 500)) as GiftLogEntry[];
+  }
+
+  /** Presentes pendentes agrupados por giftId (para o operador cadastrar o ID). */
+  pendingGiftSummary(): Array<{ giftId: string; giftName: string | null; count: number; lastAt: string }> {
+    return this.db.prepare(`SELECT gift_id AS giftId, MAX(gift_name) AS giftName, SUM(repeat_count) AS count, MAX(at) AS lastAt
+      FROM tiktok_gift_log WHERE status='pendente' GROUP BY gift_id ORDER BY lastAt DESC LIMIT 100`).all() as any[];
+  }
+
+  /** Lease de um único listener por sala: o dono renova; outro processo só assume após expirar. */
+  acquireListenerLease(roomKey: string, owner: string, ttlMs: number, now = Date.now()): boolean {
+    const run = this.db.transaction(() => {
+      const row = this.db.prepare('SELECT owner, expires_at AS expiresAt FROM listener_lease WHERE room_key=?').get(roomKey) as { owner: string; expiresAt: number } | undefined;
+      if (row && row.owner !== owner && row.expiresAt > now) return false;
+      this.db.prepare(`INSERT INTO listener_lease(room_key,owner,expires_at) VALUES(?,?,?)
+        ON CONFLICT(room_key) DO UPDATE SET owner=excluded.owner, expires_at=excluded.expires_at`).run(roomKey, owner, now + ttlMs);
+      return true;
+    });
+    return run();
+  }
+
+  releaseListenerLease(roomKey: string, owner: string) {
+    this.db.prepare('DELETE FROM listener_lease WHERE room_key=? AND owner=?').run(roomKey, owner);
   }
 
   saveRound(round: Omit<RoundSummary, 'id'>) {

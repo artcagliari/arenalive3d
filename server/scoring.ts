@@ -11,7 +11,7 @@ export function candidateFromComment(comment: string, config: ArenaConfig): Cand
     ['bolsonaro', config.bolsonaroKeyword]
   ];
   for (const [candidate, rawKeyword] of candidates) {
-    // Aceita uma lista separada por vírgula, por exemplo "13, LULA".
+    // Aceita uma lista separada por vírgula, por exemplo "13, 22".
     for (const part of rawKeyword.split(',')) {
       const keyword = normalizeText(part.trim());
       if (!keyword) continue;

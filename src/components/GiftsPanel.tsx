@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { GIFT_EFFECTS, type Candidate, type GiftEffect, type RaceGift } from '../types';
 
 const SIDES: Array<{ id: Candidate; title: string }> = [
-  { id: 'lula', title: 'Coluna esquerda · Lula' },
-  { id: 'bolsonaro', title: 'Coluna direita · Bolsonaro' }
+  { id: 'lula', title: 'Coluna esquerda · 13' },
+  { id: 'bolsonaro', title: 'Coluna direita · 22' }
 ];
 const ICONS: Record<GiftEffect, string> = { impulso: '»', arrancada: '↟', turbo: '⚡', escudo: '◈', tropeco: '✖', especial: '★', aleatorio: '?', recuperacao: '♥' };
 
@@ -125,7 +125,7 @@ export function GiftsPanel({ token, onMessage }: { token: string; onMessage: (me
           <label>ID do TikTok<input value={gift.tiktokGiftId ?? ''} placeholder="a identificar" inputMode="numeric" onChange={event => change(gift.id, { tiktokGiftId: event.target.value.replace(/\D/g, '') })} /></label>
           <label>Texto no overlay<input value={gift.label} maxLength={28} onChange={event => change(gift.id, { label: event.target.value.toUpperCase() })} /></label>
           <label>Valor em moedas<input value={gift.costLabel} maxLength={24} placeholder="opcional" onChange={event => change(gift.id, { costLabel: event.target.value })} /></label>
-          <label>Coluna<select value={gift.side} onChange={event => change(gift.id, { side: event.target.value as Candidate })}><option value="lula">Lula (esquerda)</option><option value="bolsonaro">Bolsonaro (direita)</option></select></label>
+          <label>Coluna<select value={gift.side} onChange={event => change(gift.id, { side: event.target.value as Candidate })}><option value="lula">13 (esquerda)</option><option value="bolsonaro">22 (direita)</option></select></label>
           <label>Efeito<select value={gift.effect} onChange={event => change(gift.id, { effect: event.target.value as GiftEffect })}>{GIFT_EFFECTS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
           <label>Quem recebe<select value={gift.target} onChange={event => change(gift.id, { target: event.target.value as RaceGift['target'] })}><option value="own">O corredor da coluna</option><option value="rival">O rival</option></select></label>
           <label>Pontos<input type="number" min="0" value={gift.points} onChange={event => change(gift.id, { points: Number(event.target.value) })} /></label>

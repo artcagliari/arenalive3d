@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import type { ArenaConfig, ArenaState, AudioTrigger, Candidate, ConnectorStatus, GameState, GiftBoardItem, Phase, PublicEvent, RaceGift, RaceItemId } from '../src/types.js';
+import type { ArenaConfig, ArenaState, AudioTrigger, Candidate, ConnectorGift, ConnectorStatus, GameState, GiftBoardItem, Phase, PublicEvent, RaceGift, RaceItemId } from '../src/types.js';
 import { candidateFromComment, candidateFromGift, DedupeCache } from './scoring.js';
 import { GameSimulation, modeForRound } from './game-simulation.js';
 import { AudioDirector } from './audio-director.js';
@@ -26,6 +26,11 @@ interface PersistedRuntime {
   giftLastAt?: Record<string, string>;
 }
 
+export interface AppliedGift {
+  registryId: string; name: string; side: Candidate; runner: Candidate; effect: string; label: string;
+  detail: string | null; applied: boolean; quantity: number;
+}
+
 export interface IncomingEvent {
   source: 'demo' | 'tiktok';
   type: 'comment' | 'gift' | 'like';
@@ -41,7 +46,15 @@ export interface IncomingEvent {
   raw?: unknown;
 }
 
-interface EngineOptions { phaseIntervalMs?: number; gameIntervalMs?: number; gameRandom?: () => number; audioSafeMode?: boolean }
+interface EngineOptions {
+  phaseIntervalMs?: number; gameIntervalMs?: number; gameRandom?: () => number; audioSafeMode?: boolean;
+  /** Corridas 100% automáticas: ciclo contínuo, sem depender de painel ou aba aberta. */
+  alwaysOn?: boolean;
+  /** Eventos aleatórios de pista (arrancada, tropeço, impulso, escudo) sem público. Padrão: desligados. */
+  autoEvents?: boolean;
+  /** Em modo alwaysOn, pausa do operador volta sozinha depois deste tempo. */
+  pauseMaxSec?: number;
+}
 
 const initialRuntime = (): PersistedRuntime => ({
   phase: 'idle', roundNumber: 0, phaseEndsAt: null, roundStartedAt: null,
@@ -64,7 +77,11 @@ export class ArenaEngine extends EventEmitter {
     username: null as string | null,
     lastEventAt: null as string | null,
     detail: 'Conector não configurado',
-    countingRealEvents: false
+    countingRealEvents: false,
+    roomId: null as string | null,
+    lastGift: null as ConnectorGift | null,
+    unknownGifts: 0,
+    appliedGifts: 0
   };
   private lastEvent: PublicEvent | null = null;
   private lastTickAt = new Date().toISOString();
@@ -78,6 +95,11 @@ export class ArenaEngine extends EventEmitter {
   private audio: AudioDirector;
   private lastAudioEffectId = 0;
   private finalSprintAnnounced = false;
+  private autoEvents = { round: 0, total: 0, last: null as { at: string; candidate: Candidate; kind: RaceItemId; applied: boolean } | null };
+  private pausedSince: number | null = null;
+  /** Motores em atividade neste processo: deve haver exatamente um em produção. */
+  private static running = new Set<ArenaEngine>();
+  static activeEngines() { return ArenaEngine.running.size; }
   private diagnostics = {
     eventsReceived: 0, eventsAccepted: 0, eventsDiscarded: 0,
     discardReasons: {} as Record<string, number>, eventsBySource: { demo: 0, tiktok: 0 } as Record<string, number>, audioCues: 0, gameTicks: 0,
@@ -94,7 +116,11 @@ export class ArenaEngine extends EventEmitter {
     // O modo seguro de áudio vale a cada inicialização, independente do que ficou salvo.
     this.config = { ...store.getConfig(), audioSafeMode: options.audioSafeMode ?? true };
     this.runtime = store.getRuntime<PersistedRuntime>() ?? initialRuntime();
-    this.game = new GameSimulation(this.runtime.game, options.gameRandom);
+    if (options.alwaysOn && !this.config.autoMode) {
+      this.config = { ...this.config, autoMode: true };
+      store.saveConfig(this.config);
+    }
+    this.game = this.createGame(this.runtime.game);
     if (this.game.getState().mode === 'race') this.game.setRaceDuration(this.config.raceDurationSec);
     this.lastAudioEffectId = this.game.getState().effect?.id ?? 0;
     this.audio = new AudioDirector(store, () => this.config);
@@ -105,6 +131,18 @@ export class ArenaEngine extends EventEmitter {
     this.interval.unref();
     this.gameInterval = setInterval(() => this.tickGame(), options.gameIntervalMs ?? (this.config.reducedMotion ? 180 : 100));
     this.gameInterval.unref();
+    ArenaEngine.running.add(this);
+  }
+
+  private createGame(saved?: GameState) {
+    const game = new GameSimulation(saved, this.options.gameRandom);
+    game.autoEventsEnabled = Boolean(this.options.autoEvents);
+    game.onAutoEvent = event => {
+      this.autoEvents.round += 1;
+      this.autoEvents.total += 1;
+      this.autoEvents.last = { at: new Date().toISOString(), ...event };
+    };
+    return game;
   }
 
   getDiagnostics() { return structuredClone(this.diagnostics); }
@@ -140,12 +178,20 @@ export class ArenaEngine extends EventEmitter {
       lastEvent: this.lastEvent,
       emergencyReason: this.runtime.emergencyReason,
       game: this.game.getState(),
-      gifts: this.giftBoard()
+      gifts: this.giftBoard(),
+      automation: {
+        alwaysOn: Boolean(this.options.alwaysOn),
+        autoEventsEnabled: Boolean(this.options.autoEvents),
+        autoEventsRound: this.autoEvents.round,
+        autoEventsTotal: this.autoEvents.total,
+        lastAutoEvent: this.autoEvents.last
+      }
     };
   }
 
   updateConfig(patch: ConfigPatch) {
     const wasAuto = this.config.autoMode;
+    if (this.options.alwaysOn && patch.autoMode === false) patch = { ...patch, autoMode: true };
     const duration = patch.raceDurationSec ?? patch.roundDurationSec;
     this.config = {
       ...this.config, ...patch,
@@ -188,6 +234,23 @@ export class ArenaEngine extends EventEmitter {
   /** Chamado uma única vez quando o servidor local fica pronto. */
   ensureAutomaticCycle() {
     if (this.config.autoMode && this.runtime.phase === 'idle') this.start();
+  }
+
+  /**
+   * Início do backend em modo automático: qualquer estado herdado do volume (pausa, parada de
+   * emergência, rodada interrompida) é descartado e uma rodada nova abre em 0%, sem intervenção.
+   */
+  bootAutomation() {
+    if (!this.options.alwaysOn) return this.ensureAutomaticCycle();
+    this.game.pause();
+    this.runtime.phase = 'idle';
+    this.runtime.previousPhase = undefined;
+    this.runtime.pausedRemainingMs = undefined;
+    this.runtime.emergencyReason = null;
+    this.runtime.phaseEndsAt = null;
+    this.runtime.roundStartedAt = null;
+    this.recordSystem('control', 'Backend iniciado: corrida automática começa do zero');
+    this.enterOpening();
   }
 
   /** Reinicia a corrida do zero: encerra a rodada atual e abre outra na hora. */
@@ -234,6 +297,11 @@ export class ArenaEngine extends EventEmitter {
 
   /** Encerra o ciclo sem criar outra rodada; a rodada ativa ainda salva resultado. */
   stopCycle() {
+    if (this.options.alwaysOn) {
+      this.recordSystem('control', 'Ciclo automático permanente (AUTO_RACE): o pedido de encerramento foi ignorado');
+      this.broadcast();
+      return;
+    }
     this.updateConfig({ autoMode:false });
     if (this.runtime.phase === 'live') this.enterResults();
     else if (!['results','intermission','emergency'].includes(this.runtime.phase)) {
@@ -282,6 +350,18 @@ export class ArenaEngine extends EventEmitter {
     this.broadcast();
   }
 
+  /** Dados do monitoramento (sala, último presente, contadores). Não altera o status. */
+  setConnectorInfo(patch: { roomId?: string | null; lastGift?: ConnectorGift | null; unknownGifts?: number; appliedGifts?: number }) {
+    Object.assign(this.connector, patch);
+    this.broadcast();
+  }
+
+  /** Presentes cadastrados e ativos que usam este ID do TikTok. */
+  findRaceGiftsByTikTokId(giftId: string | number): RaceGift[] {
+    const id = String(giftId);
+    return this.store.raceGifts().filter(gift => gift.enabled && gift.tiktokGiftId && gift.tiktokGiftId === id);
+  }
+
   testAudio(assetId: string) { return this.audio.test(assetId); }
 
   /** Configuração real (sem a máscara de som aplicada em getState). */
@@ -291,7 +371,7 @@ export class ArenaEngine extends EventEmitter {
   testRaceItem(candidate: Candidate, item: RaceItemId, strength = 1): { applied: boolean } {
     if (this.runtime.phase !== 'live') throw new Error('Inicie a corrida antes de testar os itens.');
     const applied = this.game.raceItem(candidate, item, strength);
-    this.recordSystem('control', `SIMULADO: ${item} em ${candidate === 'lula' ? 'Lula' : 'Bolsonaro'}${applied ? '' : ' (anulado pelo escudo)'}`);
+    this.recordSystem('control', `SIMULADO: ${item} em ${candidate === 'lula' ? '13' : '22'}${applied ? '' : ' (anulado pelo escudo)'}`);
     this.saveAndBroadcast();
     return { applied };
   }
@@ -300,7 +380,7 @@ export class ArenaEngine extends EventEmitter {
   testOvertake(candidate: Candidate): { applied: boolean } {
     if (this.runtime.phase !== 'live') throw new Error('Inicie a corrida antes de testar a ultrapassagem.');
     const applied = this.game.forceOvertake(candidate);
-    this.recordSystem('control', `SIMULADO: ultrapassagem de ${candidate === 'lula' ? 'Lula' : 'Bolsonaro'}`);
+    this.recordSystem('control', `SIMULADO: ultrapassagem de ${candidate === 'lula' ? '13' : '22'}`);
     this.saveAndBroadcast();
     return { applied };
   }
@@ -309,7 +389,7 @@ export class ArenaEngine extends EventEmitter {
   testFinish(candidate: Candidate): { applied: boolean } {
     if (this.runtime.phase !== 'live') throw new Error('Inicie a corrida antes de simular a chegada.');
     const applied = this.game.forceFinish(candidate);
-    this.recordSystem('control', `SIMULADO: chegada de ${candidate === 'lula' ? 'Lula' : 'Bolsonaro'}`);
+    this.recordSystem('control', `SIMULADO: chegada de ${candidate === 'lula' ? '13' : '22'}`);
     if (applied && this.game.getState().winner) this.enterResults();
     else this.saveAndBroadcast();
     return { applied };
@@ -326,7 +406,7 @@ export class ArenaEngine extends EventEmitter {
     return this.connector.status === 'connected';
   }
 
-  receive(input: IncomingEvent): { accepted: boolean; reason?: string } {
+  receive(input: IncomingEvent): { accepted: boolean; reason?: string; reasonCode?: string; gift?: AppliedGift } {
     this.diagnostics.eventsReceived += 1;
     if (this.runtime.phase !== 'live') return this.rejectEvent('fora_da_rodada', 'A rodada não está na fase de enquete.');
     if (input.source === 'tiktok' && this.connector.status !== 'connected') {
@@ -336,7 +416,7 @@ export class ArenaEngine extends EventEmitter {
 
     const at = new Date().toISOString();
     let event: PublicEvent | null = null;
-    let registry: RaceGift | null = null, giftApplied = false;
+    let registry: RaceGift | null = null, giftApplied = false, giftInfo: AppliedGift | undefined;
     this.giftWithoutTeam = false;
     if (input.type === 'comment' && input.comment) {
       const candidate = candidateFromComment(input.comment, this.config);
@@ -354,9 +434,10 @@ export class ArenaEngine extends EventEmitter {
       const lastAt = this.runtime.giftLastAt ??= {};
       counts[registry.id] = (counts[registry.id] ?? 0) + quantity;
       lastAt[registry.id] = at;
-      const who = runner === 'lula' ? 'Lula' : 'Bolsonaro';
+      const who = runner === 'lula' ? '13' : '22';
       event.summary = `${input.username} enviou ${registry.name}${quantity > 1 ? ` ×${quantity}` : ''} → ${registry.label}${detail ? ` (${detail})` : ''} · ${who}${applied ? '' : ': escudo anulou'}`;
       giftApplied = true;
+      giftInfo = { registryId: registry.id, name: registry.name, side: registry.side, runner, effect: registry.effect, label: registry.label, detail: detail ?? null, applied, quantity };
     } else if (input.type === 'gift' && input.giftId !== undefined) {
       const candidate = input.source === 'demo' && input.forcedCandidate ? input.forcedCandidate : candidateFromGift(input.giftId, this.config);
       if (!candidate && this.giftWithoutTeam) { this.giftWithoutTeam = false; return this.rejectEvent('presente_sem_time', 'Quem enviou o presente ainda não comentou 13 ou 22.'); }
@@ -381,10 +462,11 @@ export class ArenaEngine extends EventEmitter {
     this.saveAndBroadcast(event);
     this.diagnostics.eventsAccepted += 1;
     this.diagnostics.eventsBySource[input.source] = (this.diagnostics.eventsBySource[input.source] ?? 0) + 1;
-    return { accepted: true };
+    return { accepted: true, gift: giftInfo };
   }
 
   shutdown() {
+    ArenaEngine.running.delete(this);
     clearInterval(this.interval);
     clearInterval(this.gameInterval);
     this.persist();
@@ -393,6 +475,7 @@ export class ArenaEngine extends EventEmitter {
   private tick() {
     this.lastTickAt = new Date().toISOString();
     this.connector.countingRealEvents = this.connector.status === 'connected' && this.runtime.phase === 'live';
+    if (this.options.alwaysOn) this.selfHeal();
     if (this.runtime.phaseEndsAt && Date.now() >= Date.parse(this.runtime.phaseEndsAt)) {
       if (this.runtime.phase === 'opening') this.enterLive();
       else if (this.runtime.phase === 'live') this.enterResults();
@@ -402,6 +485,22 @@ export class ArenaEngine extends EventEmitter {
         else { this.runtime.phase = 'idle'; this.runtime.phaseEndsAt = null; this.saveAndBroadcast(); }
       }
     } else if (Math.floor(Date.now() / 1000) % 2 === 0) this.broadcast();
+  }
+
+  /** Ciclo permanente: ocioso volta a correr e pausa esquecida é retomada. Emergência fica manual. */
+  private selfHeal() {
+    if (this.runtime.phase === 'idle') {
+      this.enterOpening();
+      return;
+    }
+    if (this.runtime.phase === 'paused') {
+      this.pausedSince ??= Date.now();
+      if (Date.now() - this.pausedSince >= (this.options.pauseMaxSec ?? 120) * 1000) {
+        this.pausedSince = null;
+        this.recordSystem('control', 'Pausa expirada: automação retomada');
+        this.resume();
+      }
+    } else this.pausedSince = null;
   }
 
   private tickGame() {
@@ -435,7 +534,7 @@ export class ArenaEngine extends EventEmitter {
     } catch (error) {
       this.diagnostics.gameRecoveries += 1;
       this.store.log('error', 'Falha no motor 3D; último estado persistido restaurado', { error: String(error) });
-      this.game = new GameSimulation(this.runtime.game, this.options.gameRandom);
+      this.game = this.createGame(this.runtime.game);
       if (this.runtime.phase === 'live') this.game.resume();
       this.broadcast();
     } finally {
@@ -512,7 +611,7 @@ export class ArenaEngine extends EventEmitter {
     if (!users.includes(username)) users.push(username);
     if (candidate === 'lula') { this.runtime.lulaPoints += points; this.runtime.lulaInteractions += 1; }
     else { this.runtime.bolsonaroPoints += points; this.runtime.bolsonaroInteractions += 1; }
-    return { at, source, type, candidate, points, username, summary: `${username} +${points} para ${candidate === 'lula' ? 'Lula' : 'Bolsonaro'}` };
+    return { at, source, type, candidate, points, username, summary: `${username} +${points} para ${candidate === 'lula' ? '13' : '22'}` };
   }
 
   private recordSystem(type: 'phase' | 'control', summary: string) {
@@ -584,6 +683,7 @@ export class ArenaEngine extends EventEmitter {
   giftsChanged() { this.broadcast(); }
 
   private resetCounters() {
+    this.autoEvents.round = 0;
     this.runtime.giftCounts = {};
     this.runtime.giftLastAt = {};
     this.runtime.lulaPoints = 0; this.runtime.bolsonaroPoints = 0;
@@ -594,7 +694,7 @@ export class ArenaEngine extends EventEmitter {
   private rejectEvent(code: string, reason: string) {
     this.diagnostics.eventsDiscarded += 1;
     this.diagnostics.discardReasons[code] = (this.diagnostics.discardReasons[code] ?? 0) + 1;
-    return { accepted: false, reason };
+    return { accepted: false, reason, reasonCode: code };
   }
 
   private after(seconds: number) { return new Date(Date.now() + seconds * 1000).toISOString(); }

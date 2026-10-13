@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { RACE_ITEMS, raceProgressPercent, type ArenaState, type Candidate, type GameState } from '../types';
 import { RACE_OUTFITS } from '../outfits';
 
-const NAMES: Record<Candidate, string> = { lula: 'LULA', bolsonaro: 'BOLSONARO' };
+const NAMES: Record<Candidate, string> = { lula: '13', bolsonaro: '22' };
 const ORDER: Candidate[] = ['lula', 'bolsonaro'];
 
 function pct(value: number) { return raceProgressPercent(value); }

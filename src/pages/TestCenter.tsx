@@ -5,7 +5,7 @@ import { StatusBadge } from '../components/StatusBadge';
 import { useArena, useCountdown } from '../hooks/useArena';
 import { RACE_ITEMS, raceProgressPercent, type AudioAsset, type AudioTrigger, type Candidate, type PublicEvent, type RaceItemId, type SystemDiagnostics } from '../types';
 
-const NAMES: Record<Candidate, string> = { lula: 'Lula', bolsonaro: 'Bolsonaro' };
+const NAMES: Record<Candidate, string> = { lula: '13', bolsonaro: '22' };
 const SIDES: Candidate[] = ['lula', 'bolsonaro'];
 
 interface LogLine { id: number; at: string; label: string; detail: string; tone: 'ok' | 'warn' | 'fail' }
@@ -285,17 +285,17 @@ export function TestCenter() {
           <button onClick={() => control('stop-cycle', 'Encerrar ciclo automático')}>■ Encerrar ciclo</button>
         </div>
         <div>
-          <button className="lula" onClick={() => comment('lula', '13')}>Comentário 13 · Lula</button>
-          <button className="bolsonaro" onClick={() => comment('bolsonaro', '22')}>Comentário 22 · Bolsonaro</button>
-          <button className="lula" onClick={() => power('lula', 'impulso')}>» Impulso Lula</button>
-          <button className="bolsonaro" onClick={() => power('bolsonaro', 'impulso')}>» Impulso Bolsonaro</button>
-          <button className="lula" onClick={() => power('lula', 'turbo')}>⚡ Turbo Lula</button>
-          <button className="bolsonaro" onClick={() => power('bolsonaro', 'turbo')}>⚡ Turbo Bolsonaro</button>
-          <button className="lula" onClick={() => power('lula', 'tropeco')}>✖ Tropeço Lula</button>
-          <button className="bolsonaro" onClick={() => power('bolsonaro', 'tropeco')}>✖ Tropeço Bolsonaro</button>
+          <button className="lula" onClick={() => comment('lula', '13')}>Comentário 13</button>
+          <button className="bolsonaro" onClick={() => comment('bolsonaro', '22')}>Comentário 22</button>
+          <button className="lula" onClick={() => power('lula', 'impulso')}>» Impulso 13</button>
+          <button className="bolsonaro" onClick={() => power('bolsonaro', 'impulso')}>» Impulso 22</button>
+          <button className="lula" onClick={() => power('lula', 'turbo')}>⚡ Turbo 13</button>
+          <button className="bolsonaro" onClick={() => power('bolsonaro', 'turbo')}>⚡ Turbo 22</button>
+          <button className="lula" onClick={() => power('lula', 'tropeco')}>✖ Tropeço 13</button>
+          <button className="bolsonaro" onClick={() => power('bolsonaro', 'tropeco')}>✖ Tropeço 22</button>
           <button onClick={() => { gifts('lula', 5, 'Presente simulado'); gifts('bolsonaro', 5, 'Presente simulado'); }}>🎁 Presentes simulados</button>
-          <button onClick={() => playCatchphrase('lula')}>♪ Bordão de Lula</button>
-          <button onClick={() => playCatchphrase('bolsonaro')}>♪ Bordão de Bolsonaro</button>
+          <button onClick={() => playCatchphrase('lula')}>♪ Bordão do 13</button>
+          <button onClick={() => playCatchphrase('bolsonaro')}>♪ Bordão do 22</button>
           <button className={demo ? 'danger-lite' : ''} onClick={startDemo}>{demo ? '■ Parar sequência' : '▶ Simular sequência de eventos'}</button>
         </div>
       </section>
@@ -351,7 +351,7 @@ export function TestCenter() {
         <div className="panel-heading"><div><p className="eyebrow">CATEGORIA 1</p><h2>Comentários</h2></div><span className="helper-text">Seguem a pontuação configurada no painel</span></div>
         <Side>{candidate => <>
           <button onClick={() => comment(candidate, candidate === 'lula' ? '13' : '22')}>Comentar <b>{candidate === 'lula' ? '13' : '22'}</b></button>
-          <button onClick={() => comment(candidate, candidate === 'lula' ? 'LULA' : 'BOLSONARO')}>Comentar <b>{candidate === 'lula' ? 'LULA' : 'BOLSONARO'}</b></button>
+          <button onClick={() => comment(candidate, candidate === 'lula' ? '13' : '22')}>Comentar <b>{candidate === 'lula' ? '13' : '22'}</b></button>
           <button disabled={broadcasting} onClick={() => burst(candidate, 10, 250)}>10 comentários</button>
           <button disabled={broadcasting} onClick={() => burst(candidate, 100, 150)}>100 em sequência</button>
         </>}</Side>
@@ -414,9 +414,9 @@ export function TestCenter() {
           <button onClick={() => sound('gift_received')}>Áudio associado a presente</button>
           {([['race_start', 'Largada'], ['boost', 'Impulso'], ['stumble', 'Tropeço'], ['overtake', 'Ultrapassagem'], ['final_sprint', 'Reta final'], ['victory', 'Chegada/vitória'], ['combo', 'Torcida']] as Array<[AudioTrigger, string]>)
             .map(([trigger, label]) => <button key={trigger} onClick={() => sound(trigger)}>{label}</button>)}
-          <button onClick={() => playCatchphrase('lula')}>Bordão de Lula</button>
-          <button onClick={() => playCatchphrase('bolsonaro')}>Bordão de Bolsonaro</button>
-          <button onClick={() => sound('comment_received', 'lula')}>Som de comentário · Lula</button>
+          <button onClick={() => playCatchphrase('lula')}>Bordão do 13</button>
+          <button onClick={() => playCatchphrase('bolsonaro')}>Bordão do 22</button>
+          <button onClick={() => sound('comment_received', 'lula')}>Som de comentário · 13</button>
           <button onClick={() => schedule('Teste de sobreposição', 8, 180, index => sound(['impact', 'boost', 'stumble', 'overtake'][index % 4] as AudioTrigger))}>Testar sobreposição (8 sons)</button>
         </div>
         <div className="test-assets">{assets.map(asset => {

@@ -1,4 +1,4 @@
-# LIVE ARENA 3D — Lula x Bolsonaro
+# LIVE ARENA 3D — 13 x 22
 
 Jogo 3D local de entretenimento para transmissões autorizadas. O modo principal é a **corrida presidencial** em vista lateral, com a batalha mantida como modo secundário. Inclui corrida autônoma, batalha autônoma, personagens estilizados, câmera cinematográfica, overlay vertical para OBS, painel autenticado, estado persistente, histórico em SQLite, watchdog e adaptador opcional para eventos do TikTok LIVE.
 
@@ -106,7 +106,7 @@ Os contadores de cada item aparecem nas colunas laterais do overlay e no painel.
 
 #### Layout do overlay (1080×1920)
 
-De cima para baixo: selo **AO VIVO**, título e cronômetro; **placar** com retrato cartoon, barra de progresso, percentual, metros restantes, vitórias e destaque de quem lidera; **chamadas** “DIGITE 13 / DIGITE 22” em cartões; **pista** ao centro com estádio, arquibancada animada, placas de LED, marcas de distância e pórtico de chegada; **colunas de poderes** nas laterais (impulso, arrancada, turbo, escudo, tropeço), com contador e atalho; rodapé curto com a meta de curtidas e o último evento. O aviso de teste é só um selo pequeno **MODO TESTE** e uma linha discreta “paródia fictícia · não é pesquisa eleitoral”.
+De cima para baixo: selo **AO VIVO**, título e cronômetro; **placar** com retrato cartoon, barra de progresso, percentual, metros restantes, vitórias e destaque de quem lidera; **chamadas** “13 PARA CORRER / 22 PARA CORRER” em cartões; **pista** ao centro com estádio, arquibancada animada, placas de LED, marcas de distância e pórtico de chegada; **colunas de poderes** nas laterais (impulso, arrancada, turbo, escudo, tropeço), com contador e atalho; rodapé curto com a meta de curtidas e o último evento. O aviso de teste é só um selo pequeno **MODO TESTE** e uma linha discreta “paródia fictícia · não é pesquisa eleitoral”.
 
 O botão de som do overlay só aparece ao passar o mouse, para não entrar na transmissão.
 
@@ -158,7 +158,7 @@ Em **Configurações → Corrida**, cada poder tem um texto de atalho (`{n}` vir
 
 - **Distância da pista:** aparece no placar e na contagem de metros restantes.
 - **Duração de uma corrida limpa:** tempo de referência sem tropeços nem impulsos; define a velocidade-base.
-- **Comando no overlay:** os textos `DIGITE 13 PARA LULA CORRER` e `DIGITE 22 PARA BOLSONARO CORRER` são editáveis. Mantenha-os coerentes com as palavras-chave, que aceitam uma lista separada por vírgula (`13, LULA`).
+- **Comando no overlay:** os textos `13 PARA CORRER` e `22 PARA CORRER` são editáveis. Mantenha-os coerentes com as palavras-chave, que aceitam uma lista separada por vírgula (`13`, `22`). Os corredores aparecem apenas como **13** e **22**; os nomes não são usados em comandos nem em textos do overlay.
 
 #### Testar na pista
 
@@ -263,7 +263,7 @@ Segurança: a página exige autenticação; eventos entram com origem `demo` e a
 2. Abra `http://127.0.0.1:8787/overlay` em uma janela.
 3. Abra `http://127.0.0.1:8787/admin/testes` em outra e autentique.
 4. Confirme que o status já percorre **Contagem regressiva → Corrida**; se o ciclo foi encerrado antes, clique em **Iniciar ciclo automático**.
-5. Clique em **Comentar 13**: o placar de Lula sobe, o corredor ganha impulso e o histórico registra o evento como simulado.
+5. Clique em **Comentar 13**: o placar do 13 sobe, o corredor ganha impulso e o histórico registra o evento como simulado.
 
 ## Bordões, memes e biblioteca de áudio
 

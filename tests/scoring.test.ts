@@ -4,9 +4,9 @@ import { candidateFromComment, candidateFromGift, DedupeCache } from '../server/
 import { DEFAULT_CONFIG } from '../server/store.js';
 
 test('comentários reconhecem palavras inteiras sem diferenciar maiúsculas ou acentos', () => {
-  assert.equal(candidateFromComment('Meu apoio é LULA!', DEFAULT_CONFIG), 'lula');
-  assert.equal(candidateFromComment('voto no bolsonaro hoje', DEFAULT_CONFIG), 'bolsonaro');
-  assert.equal(candidateFromComment('a palavra lulapalooza não conta', DEFAULT_CONFIG), null);
+  assert.equal(candidateFromComment('Meu apoio é 13!', DEFAULT_CONFIG), 'lula');
+  assert.equal(candidateFromComment('voto no 22 hoje', DEFAULT_CONFIG), 'bolsonaro');
+  assert.equal(candidateFromComment('o número 130 não conta', DEFAULT_CONFIG), null);
 });
 
 test('presentes usam apenas os IDs configurados', () => {

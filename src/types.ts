@@ -5,7 +5,19 @@ export function raceProgressPercent(value:number) {
   return normalized>=1?100:Math.min(99,Math.floor(normalized*100));
 }
 export type Phase = 'idle' | 'opening' | 'live' | 'paused' | 'results' | 'intermission' | 'emergency';
-export type ConnectorStatus = 'disabled' | 'connecting' | 'connected' | 'reconnecting' | 'stalled' | 'disconnected' | 'ended' | 'error';
+/** Último presente real recebido do TikTok (monitoramento administrativo). */
+export interface ConnectorGift {
+  at: string;
+  giftId: string;
+  giftName: string | null;
+  repeatCount: number;
+  sender: string;
+  runner: Candidate | null;
+  power: string | null;
+  status: 'aplicado' | 'pendente' | 'fora_da_rodada' | 'descartado';
+}
+
+export type ConnectorStatus = 'disabled' | 'connecting' | 'connected' | 'reconnecting' | 'stalled' | 'disconnected' | 'ended' | 'error' | 'offline' | 'standby';
 export type GameMode = 'battle' | 'race';
 export type GameModeSetting = GameMode | 'alternate';
 export type CameraMode = 'dynamic' | 'wide' | 'close';
@@ -252,7 +264,7 @@ export interface RaceGift {
   name: string;
   /** ID real do presente no TikTok. Vazio = só funciona em teste. */
   tiktokGiftId: string | null;
-  /** Coluna onde aparece (Lula à esquerda, Bolsonaro à direita). */
+  /** Coluna onde aparece (13 à esquerda, 22 à direita). */
   side: Candidate;
   effect: GiftEffect;
   target: GiftTarget;
@@ -304,6 +316,10 @@ export interface ArenaState {
     lastEventAt: string | null;
     detail: string;
     countingRealEvents: boolean;
+    roomId?: string | null;
+    lastGift?: ConnectorGift | null;
+    unknownGifts?: number;
+    appliedGifts?: number;
   };
   health: {
     server: 'ok' | 'degraded';
@@ -316,6 +332,14 @@ export interface ArenaState {
   game: GameState;
   /** Presentes ativos nas colunas laterais, com contador da rodada. */
   gifts: GiftBoardItem[];
+  /** Eventos INTERNOS automáticos da pista (não são presentes nem comentários). */
+  automation?: {
+    alwaysOn: boolean;
+    autoEventsEnabled?: boolean;
+    autoEventsRound: number;
+    autoEventsTotal: number;
+    lastAutoEvent: { at: string; candidate: Candidate; kind: RaceItemId; applied: boolean } | null;
+  };
 }
 
 export interface AudioDiagnostics {

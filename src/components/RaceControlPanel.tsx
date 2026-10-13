@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { RACE_ITEMS, raceProgressPercent, type ArenaState, type Candidate, type RaceItemId } from '../types';
 import { RACE_OUTFITS } from '../outfits';
 
-const NAMES: Record<Candidate, string> = { lula: 'Lula', bolsonaro: 'Bolsonaro' };
+const NAMES: Record<Candidate, string> = { lula: '13', bolsonaro: '22' };
 const ORDER: Candidate[] = ['lula', 'bolsonaro'];
 
 /** Prévia da corrida + disparo manual dos itens, para testar antes e durante a LIVE. */

@@ -29,7 +29,7 @@ export function CharacterAssetsPanel({config,token,onMessage}:{config:ArenaConfi
   const versioned=(url:string)=>`${url}${url.includes('?')?'&':'?'}v=${config.characterAssetVersion}`;
   async function upload(candidate:Candidate,event:ChangeEvent<HTMLInputElement>){
     const file=event.target.files?.[0];if(!file)return;setBusy(candidate);
-    try{const data=new FormData();data.append('image',file);const response=await fetch(`/api/characters/${candidate}`,{method:'POST',headers:{'x-admin-token':token},body:data});const body=await response.json();if(!response.ok)throw new Error(body.error??'Falha ao atualizar personagem.');onMessage(`${candidate==='lula'?'Lula':'Bolsonaro'} atualizado no overlay.`)}catch(error){onMessage(error instanceof Error?error.message:'Falha ao atualizar personagem.')}finally{setBusy(null);event.target.value=''}
+    try{const data=new FormData();data.append('image',file);const response=await fetch(`/api/characters/${candidate}`,{method:'POST',headers:{'x-admin-token':token},body:data});const body=await response.json();if(!response.ok)throw new Error(body.error??'Falha ao atualizar personagem.');onMessage(`${candidate==='lula'?'13':'22'} atualizado no overlay.`)}catch(error){onMessage(error instanceof Error?error.message:'Falha ao atualizar personagem.')}finally{setBusy(null);event.target.value=''}
   }
   async function setStyle(runnerStyle:'cartoon'|'classic'){
     try{const response=await fetch('/api/config',{method:'PATCH',headers:{'Content-Type':'application/json','x-admin-token':token},body:JSON.stringify({runnerStyle})});
@@ -42,13 +42,13 @@ export function CharacterAssetsPanel({config,token,onMessage}:{config:ArenaConfi
     <div className="panel-heading"><div><p className="eyebrow">IDENTIDADE VISUAL</p><h2>Personagens da arena</h2></div><button type="button" className="ghost-button" onClick={()=>void command('/api/characters/reload','Texturas recarregadas no overlay.')}>↻ Recarregar personagens</button></div>
     <p className="character-help">Corpo 3D animado com rosto estilizado em textura 2D. Prefira PNG ou WebP transparente, rosto centralizado e arquivo de até 4 MB.</p>
     <div className="character-preview-grid">{(['lula','bolsonaro'] as Candidate[]).map(candidate=>{
-      const name=candidate==='lula'?'Lula':'Bolsonaro',url=candidate==='lula'?config.lulaCharacterAsset:config.bolsonaroCharacterAsset;
+      const name=candidate==='lula'?'13':'22',url=candidate==='lula'?config.lulaCharacterAsset:config.bolsonaroCharacterAsset;
       return <article key={candidate} className={`character-preview ${candidate}`}><div className="character-portrait"><span>{candidate==='lula'?'LADO VERMELHO':'LADO AZUL'}</span><img src={versioned(url)} alt={`Pré-visualização estilizada de ${name}`}/></div><div><h3>{name}</h3><p>{candidate==='lula'?'Rosto arredondado · barba e cabelo grisalhos':'Rosto alongado · cabelo curto · sem barba'}</p><div className="character-actions"><label className="primary-button">{busy===candidate?'Enviando…':'Trocar asset'}<input disabled={Boolean(busy)} type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" onChange={event=>void upload(candidate,event)}/></label><button type="button" className="ghost-button" onClick={()=>void command(`/api/characters/${candidate}/reset`,`${name} restaurado para o asset estilizado padrão.`)}>Restaurar padrão</button></div><small>{url}</small></div></article>;
     })}</div>
     <div className="outfit-section">
       <div className="panel-heading"><div><p className="eyebrow">CORREDORES · MODO PRINCIPAL</p><h2>Bonecos da corrida</h2></div><span className="demo-chip">CARTOON VETORIAL · SEM FOTO</span></div>
       <div className="runner-preview-grid">{(['lula','bolsonaro'] as Candidate[]).map(candidate=>{
-        const outfit=RACE_OUTFITS[candidate],name=candidate==='lula'?'Lula':'Bolsonaro';
+        const outfit=RACE_OUTFITS[candidate],name=candidate==='lula'?'13':'22';
         const url=candidate==='lula'?config.lulaCharacterAsset:config.bolsonaroCharacterAsset;
         return <article key={candidate} className={`runner-card ${candidate}`}>
           <RunnerPreview candidate={candidate} faceUrl={versioned(url)} />
@@ -60,7 +60,7 @@ export function CharacterAssetsPanel({config,token,onMessage}:{config:ArenaConfi
     </div>
 
     <div className="outfit-section"><div className="panel-heading"><div><p className="eyebrow">FIGURINO</p><h2>Roupa dos lutadores (modo batalha)</h2></div></div>
-      <div className="character-preview-grid">{(['lula','bolsonaro'] as Candidate[]).map(candidate=>{const outfit=OUTFITS[candidate],name=candidate==='lula'?'Lula':'Bolsonaro',url=candidate==='lula'?config.lulaCharacterAsset:config.bolsonaroCharacterAsset;
+      <div className="character-preview-grid">{(['lula','bolsonaro'] as Candidate[]).map(candidate=>{const outfit=OUTFITS[candidate],name=candidate==='lula'?'13':'22',url=candidate==='lula'?config.lulaCharacterAsset:config.bolsonaroCharacterAsset;
         return <article key={candidate} className={`character-preview outfit-preview ${candidate}`}><div className="character-portrait"><span>{outfit.label.toUpperCase()}</span><OutfitPreview outfit={outfit} face={versioned(url)} name={name}/></div><div><h3>{name}</h3><p>{outfit.description}</p><div className="outfit-swatches">{[['Paletó',outfit.jacket],['Gravata',outfit.tie],['Calça',outfit.trousers],['Lenço',outfit.pocketSquare]].map(([label,color])=><span key={label} title={label}><i style={{background:color}}/>{label}</span>)}</div><small>{outfit.id}</small></div></article>;})}</div>
     </div>
     <div className="character-note"><b>SIMULAÇÃO FICTÍCIA</b><span>Estas são representações estilizadas para entretenimento, não imagens de acontecimentos reais.</span></div>

@@ -10,7 +10,7 @@ import { drawHead, drawRunner, star, strideRate, type Expression, type RunnerMoo
 
 const W = 1080, H = 1920;
 const ORDER: Candidate[] = ['lula', 'bolsonaro'];
-/** Lula na raia de trás, Bolsonaro na da frente: profundidade sem sobreposição confusa. */
+/** O 13 na raia de trás, o 22 na da frente: profundidade sem sobreposição confusa. */
 const LANE: Record<Candidate, { foot: number; size: number }> = {
   lula: { foot: 1168, size: 318 },
   bolsonaro: { foot: 1366, size: 344 }
@@ -138,7 +138,7 @@ function buildBoards(): HTMLCanvasElement {
   const width = 1800, height = 74;
   const canvas = makeCanvas(width, height), ctx = canvas.getContext('2d')!;
   const panels: Array<[string, string, string]> = [
-    ['#e3262f', '#ffffff', 'DIGITE 13'], ['#0d1528', '#ffd21f', 'LIVE ARENA'], ['#12a14b', '#ffd21f', 'DIGITE 22'],
+    ['#e3262f', '#ffffff', '13 PARA CORRER'], ['#0d1528', '#ffd21f', 'LIVE ARENA'], ['#12a14b', '#ffd21f', '22 PARA CORRER'],
     ['#0d1528', '#7fd4ff', 'CORRIDA AO VIVO'], ['#ffd21f', '#0d1528', 'TURBO ⚡'], ['#0d1528', '#ffffff', '400 M']
   ];
   const panelWidth = width / panels.length;

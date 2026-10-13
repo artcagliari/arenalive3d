@@ -63,6 +63,12 @@ export class GameSimulation {
     this.effectSequence = saved?.effect?.id ?? saved?.simulationTick ?? 0;
   }
 
+  /** Desligado: a corrida só anda no ritmo normal; impulsos vêm somente de comentários e presentes. */
+  autoEventsEnabled = true;
+
+  /** Notificação dos eventos automáticos de pista (diagnóstico do painel). */
+  onAutoEvent?: (event: { candidate: Candidate; kind: RaceItemId; applied: boolean }) => void;
+
   getState(): GameState { return structuredClone(this.state); }
 
   /** Restaura a velocidade coerente depois de reiniciar o processo no meio da corrida. */
@@ -310,7 +316,7 @@ export class GameSimulation {
         this.decisionIn[candidate] = 0.8 + this.random() * 1.4;
       }
       if (this.eventIn[candidate] <= 0) {
-        this.autoRaceEvent(candidate);
+        if (this.autoEventsEnabled) this.autoRaceEvent(candidate);
         this.eventIn[candidate] = this.nextEventDelay();
       }
       if (this.actionIn[candidate] <= 0) {
@@ -394,10 +400,13 @@ export class GameSimulation {
   /** Eventos de pista que acontecem sozinhos, mesmo sem público. */
   private autoRaceEvent(candidate: Candidate) {
     const roll = this.random();
-    if (roll < 0.42) this.raceItem(candidate, 'arrancada', 0.7 + this.random() * 0.5);
-    else if (roll < 0.72) this.raceItem(candidate, 'tropeco', 0.6 + this.random() * 0.5);
-    else if (roll < 0.9) this.raceItem(candidate, 'impulso', 0.8 + this.random() * 0.6);
-    else this.raceItem(candidate, 'escudo', 0.8);
+    let kind: RaceItemId, applied: boolean;
+    if (roll < 0.42) { kind = 'arrancada'; applied = this.raceItem(candidate, kind, 0.7 + this.random() * 0.5); }
+    else if (roll < 0.72) { kind = 'tropeco'; applied = this.raceItem(candidate, kind, 0.6 + this.random() * 0.5); }
+    else if (roll < 0.9) { kind = 'impulso'; applied = this.raceItem(candidate, kind, 0.8 + this.random() * 0.6); }
+    else { kind = 'escudo'; applied = this.raceItem(candidate, kind, 0.8); }
+    // Evento INTERNO da pista: só contabilizado; nunca vira presente nem pontos.
+    this.onAutoEvent?.({ candidate, kind, applied });
   }
 
   private nextEventDelay() {

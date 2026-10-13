@@ -1,15 +1,15 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import type { AudioAsset, AudioCategory, AudioTrigger, Candidate } from '../types';
 
-const categories:Record<AudioCategory,string>={lula_catchphrase:'Bordão associado a Lula',bolsonaro_catchphrase:'Bordão associado a Bolsonaro',satire_meme:'Meme / provocação satírica',crowd:'Grito de torcida',hit:'Golpe / tropeço',defense:'Defesa / escudo',result:'Vitória / derrota',gift:'Presente / turbo',alert:'Largada / transição',music:'Música de fundo'};
+const categories:Record<AudioCategory,string>={lula_catchphrase:'Bordão associado ao 13',bolsonaro_catchphrase:'Bordão associado ao 22',satire_meme:'Meme / provocação satírica',crowd:'Grito de torcida',hit:'Golpe / tropeço',defense:'Defesa / escudo',result:'Vitória / derrota',gift:'Presente / turbo',alert:'Largada / transição',music:'Música de fundo'};
 const triggers:Record<AudioTrigger,string>={round_start:'Início da rodada',impact:'Impacto comum',special:'Turbo / golpe especial',defense:'Escudo ativado',dodge:'Esquiva',gift_received:'Presente recebido',comment_received:'Comentário identificado',combo:'Sequência / torcida',scene_change:'Mudança de cenário',round_end:'Encerramento da rodada',victory:'Vitória',defeat:'Derrota',race_start:'Largada da corrida',boost:'Impulso / arrancada',stumble:'Tropeço',overtake:'Ultrapassagem',final_sprint:'Reta final',background_music:'Música de fundo (laço na corrida)'};
 const animations:Record<string,string>={none:'Sem animação extra',camera_flash:'Flash de câmera',impact_burst:'Explosão de impacto',special_burst:'Aura especial',shield:'Escudo luminoso',speed_lines:'Linhas de velocidade',gift_glow:'Brilho de presente',crowd_lights:'Luzes da torcida',scene_wipe:'Transição de cena',victory_lights:'Luzes de vitória',lights_down:'Luzes baixas'};
 
 /** As sete seções pedidas para a biblioteca, nesta ordem. */
 const GROUPS:Array<{id:string;title:string;hint:string;match:(asset:AudioAsset)=>boolean}>=[
   {id:'musica',title:'Música de fundo',hint:'Arquivo próprio ou licenciado, em laço durante a corrida. Só toca com a trilha ligada.',match:a=>a.category==='music'||a.trigger==='background_music'},
-  {id:'lula',title:'Bordões associados a Lula',hint:'Tocam quando o evento acontece do lado de Lula.',match:a=>a.category==='lula_catchphrase'},
-  {id:'bolsonaro',title:'Bordões associados a Bolsonaro',hint:'Tocam quando o evento acontece do lado de Bolsonaro.',match:a=>a.category==='bolsonaro_catchphrase'},
+  {id:'lula',title:'Bordões associados ao 13',hint:'Tocam quando o evento acontece do lado do 13.',match:a=>a.category==='lula_catchphrase'},
+  {id:'bolsonaro',title:'Bordões associados ao 22',hint:'Tocam quando o evento acontece do lado do 22.',match:a=>a.category==='bolsonaro_catchphrase'},
   {id:'memes',title:'Memes e provocações satíricas',hint:'Sempre identificados como sátira ou paródia no overlay.',match:a=>a.category==='satire_meme'},
   {id:'corrida',title:'Sons de corrida',hint:'Largada, reta final e transições de cenário.',match:a=>['race_start','round_start','final_sprint','scene_change'].includes(a.trigger)&&!a.category.endsWith('catchphrase')&&a.category!=='satire_meme'},
   {id:'ultrapassagem',title:'Sons de ultrapassagem',hint:'Disparados quando a liderança troca de mãos.',match:a=>a.trigger==='overtake'&&a.category!=='satire_meme'},
@@ -129,7 +129,7 @@ export function AudioLibraryPanel({token,onMessage,simple=false}:{token:string;o
 
   return <section className="panel audio-library-panel" id="audio-library">
     <div className="panel-heading">
-      <div><p className="eyebrow">BIBLIOTECA DE ÁUDIO</p><h2>BORDÕES — LULA X BOLSONARO</h2></div>
+      <div><p className="eyebrow">BIBLIOTECA DE ÁUDIO</p><h2>BORDÕES — 13 X 22</h2></div>
       <span className="demo-chip">{ready} COM ARQUIVO · {pending} VAGAS VAZIAS</span>
     </div>
     <div className="audio-legal"><b>Conteúdo responsável</b><span>Importe somente áudio original, paródia própria ou material licenciado, e marque as paródias como sátira. Não use clonagem de voz dos políticos nem apresente montagens como falas autênticas. As vagas sem arquivo aparecem como “Áudio não cadastrado” e não tocam na corrida.</span></div>
@@ -141,9 +141,9 @@ export function AudioLibraryPanel({token,onMessage,simple=false}:{token:string;o
 
     {showNew&&<form className="audio-new-slot" onSubmit={createSlot}>
       <label>Nome do bordão<input value={slot.name} required minLength={2} onChange={event=>setSlot({...slot,name:event.target.value})} placeholder="ex.: Bordão de largada"/></label>
-      {simple?<><label>Lado<select value={slot.candidate||''} onChange={event=>setSlot({...slot,candidate:event.target.value as ''|Candidate})}><option value="lula">Lula</option><option value="bolsonaro">Bolsonaro</option><option value="">Geral</option></select></label><label>Arquivo MP3, WAV ou OGG<input type="file" required accept="audio/mpeg,audio/wav,audio/ogg,.mp3,.wav,.ogg" onChange={event=>setFile(event.target.files?.[0]??null)}/></label><label>Volume: {slot.volume}%<input type="range" min="0" max="100" value={slot.volume} onChange={event=>setSlot({...slot,volume:Number(event.target.value)})}/></label></>:<label>Seção<select value={slot.category} onChange={event=>setSlot({...slot,category:event.target.value as AudioCategory})}>{Object.entries(categories).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>}
+      {simple?<><label>Lado<select value={slot.candidate||''} onChange={event=>setSlot({...slot,candidate:event.target.value as ''|Candidate})}><option value="lula">13</option><option value="bolsonaro">22</option><option value="">Geral</option></select></label><label>Arquivo MP3, WAV ou OGG<input type="file" required accept="audio/mpeg,audio/wav,audio/ogg,.mp3,.wav,.ogg" onChange={event=>setFile(event.target.files?.[0]??null)}/></label><label>Volume: {slot.volume}%<input type="range" min="0" max="100" value={slot.volume} onChange={event=>setSlot({...slot,volume:Number(event.target.value)})}/></label></>:<label>Seção<select value={slot.category} onChange={event=>setSlot({...slot,category:event.target.value as AudioCategory})}>{Object.entries(categories).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>}
       <label>Evento disparador<select value={slot.trigger} onChange={event=>setSlot({...slot,trigger:event.target.value as AudioTrigger})}>{Object.entries(triggers).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
-      {!simple&&<label>Personagem<select value={slot.candidate} onChange={event=>setSlot({...slot,candidate:event.target.value as ''|Candidate})}><option value="">Neutro / ambos</option><option value="lula">Lula</option><option value="bolsonaro">Bolsonaro</option></select></label>}
+      {!simple&&<label>Personagem<select value={slot.candidate} onChange={event=>setSlot({...slot,candidate:event.target.value as ''|Candidate})}><option value="">Neutro / ambos</option><option value="lula">13</option><option value="bolsonaro">22</option></select></label>}
       {simple&&<label className="audio-check"><input type="checkbox" checked={slot.isSatire} onChange={event=>setSlot({...slot,isSatire:event.target.checked})}/> Identificar como sátira/paródia</label>}
       <label className="wide">Licença / origem<input required value={slot.licenseNote} onChange={event=>setSlot({...slot,licenseNote:event.target.value})}/></label>
       <button className="primary-button" disabled={busy}>{busy?'Salvando…':simple?'Salvar e testar no overlay':'Criar vaga'}</button>
@@ -165,7 +165,7 @@ export function AudioLibraryPanel({token,onMessage,simple=false}:{token:string;o
             </div>
             <div className="audio-row-controls">
               <select value={asset.trigger} onChange={event=>change(asset.id,{trigger:event.target.value as AudioTrigger})}>{Object.entries(triggers).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select>
-              <select value={asset.candidate??''} onChange={event=>change(asset.id,{candidate:(event.target.value||null) as Candidate|null})}><option value="">Neutro</option><option value="lula">Lula</option><option value="bolsonaro">Bolsonaro</option></select>
+              <select value={asset.candidate??''} onChange={event=>change(asset.id,{candidate:(event.target.value||null) as Candidate|null})}><option value="">Neutro</option><option value="lula">13</option><option value="bolsonaro">22</option></select>
               <select value={asset.animation} onChange={event=>change(asset.id,{animation:event.target.value})}>{Object.entries(animations).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select>
               <label>Vol. {asset.volume}%<input type="range" min="0" max="100" value={asset.volume} onChange={event=>change(asset.id,{volume:Number(event.target.value)})}/></label>
               <label>Máx. 1/{asset.maxFrequencySec}s<input type="range" min="0" max="60" value={asset.maxFrequencySec} onChange={event=>change(asset.id,{maxFrequencySec:Number(event.target.value)})}/></label>
@@ -192,7 +192,7 @@ export function AudioLibraryPanel({token,onMessage,simple=false}:{token:string;o
         <label>Nome do bordão<input value={form.name} required onChange={event=>setForm({...form,name:event.target.value})}/></label>
         <label>Seção<select value={form.category} onChange={event=>setForm({...form,category:event.target.value as AudioCategory})}>{Object.entries(categories).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
         <label>Evento<select value={form.trigger} onChange={event=>setForm({...form,trigger:event.target.value as AudioTrigger})}>{Object.entries(triggers).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
-        <label>Personagem<select value={form.candidate} onChange={event=>setForm({...form,candidate:event.target.value as ''|Candidate})}><option value="">Neutro / ambos</option><option value="lula">Lula</option><option value="bolsonaro">Bolsonaro</option></select></label>
+        <label>Personagem<select value={form.candidate} onChange={event=>setForm({...form,candidate:event.target.value as ''|Candidate})}><option value="">Neutro / ambos</option><option value="lula">13</option><option value="bolsonaro">22</option></select></label>
         <label>Animação<select value={form.animation} onChange={event=>setForm({...form,animation:event.target.value})}>{Object.entries(animations).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
         <label>Volume: {form.volume}%<input type="range" min="0" max="100" value={form.volume} onChange={event=>setForm({...form,volume:Number(event.target.value)})}/></label>
         <label>Intervalo mínimo (seg)<input type="number" min="0" max="3600" value={form.maxFrequencySec} onChange={event=>setForm({...form,maxFrequencySec:Number(event.target.value)})}/></label>

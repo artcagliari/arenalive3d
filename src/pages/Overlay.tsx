@@ -12,7 +12,7 @@ const actionLabel:Record<string,string>={idle:'observando',advance:'avançando',
 
 function phaseTitle(state:ArenaState){
   if(state.phase==='opening')return state.game.mode==='battle'?'BATALHA PREPARADA':'CORREDORES NA LARGADA';
-  if(state.phase==='results')return state.game.winner==='tie'?'EMPATE':`${state.game.winner==='lula'?'LULA':'BOLSONARO'} VENCE`;
+  if(state.phase==='results')return state.game.winner==='tie'?'EMPATE':`${state.game.winner==='lula'?'13':'22'} VENCE`;
   if(state.phase==='intermission')return 'TROCA DE CENÁRIO';if(state.phase==='paused')return 'JOGO PAUSADO';
   if(state.phase==='emergency')return 'OPERAÇÃO SUSPENSA';if(state.phase==='idle')return 'AGUARDANDO INÍCIO';return '';
 }
@@ -20,7 +20,7 @@ function phaseTitle(state:ArenaState){
 function CompetitorHud({state,candidate}:{state:ArenaState;candidate:'lula'|'bolsonaro'}){
   const game=state.game[candidate],isRace=state.game.mode==='race',value=isRace?game.raceProgress*100:game.energy;
   return <div className={`competitor-hud ${candidate}`}>
-    <div className="hud-name"><span>{candidate==='lula'?'LADO VERMELHO':'LADO AZUL'}</span><b>{candidate==='lula'?'LULA':'BOLSONARO'}</b></div>
+    <div className="hud-name"><span>{candidate==='lula'?'LADO VERMELHO':'LADO AZUL'}</span><b>{candidate==='lula'?'13':'22'}</b></div>
     <div className="energy-track"><i style={{width:`${Math.max(0,Math.min(100,value))}%`}} /></div>
     <div className="hud-meta"><span>{isRace?`${raceProgressPercent(game.raceProgress)}% DA PISTA`:`${Math.round(value)} ENERGIA`}</span><em>{actionLabel[game.action]}</em></div>
   </div>;

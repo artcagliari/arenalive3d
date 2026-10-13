@@ -8,7 +8,7 @@ import { HeadBadge, RaceStage } from './RaceStage';
  * Tudo dimensionado em `cqw` para escalar do celular ao OBS.
  */
 
-const NAMES: Record<Candidate, string> = { lula: 'LULA', bolsonaro: 'BOLSONARO' };
+const NAMES: Record<Candidate, string> = { lula: '13', bolsonaro: '22' };
 const ORDER: Candidate[] = ['lula', 'bolsonaro'];
 const ICONS: Record<RaceItemId, string> = { impulso: '»', arrancada: '↟', turbo: '⚡', escudo: '◈', tropeco: '✖' };
 const SHORT: Record<RaceItemId, string> = { impulso: 'IMPULSO', arrancada: 'ARRANCADA', turbo: 'TURBO', escudo: 'ESCUDO', tropeco: 'TROPEÇO' };
@@ -21,10 +21,10 @@ function formatTime(total: number) {
   return `${Math.floor(total / 60).toString().padStart(2, '0')}:${(total % 60).toString().padStart(2, '0')}`;
 }
 
-/** "DIGITE 13 PARA LULA CORRER" vira: DIGITE · 13 · PARA LULA CORRER. */
+/** "13 PARA CORRER" vira: 13 · PARA CORRER (o número em destaque). */
 function splitCommand(label: string) {
-  const match = /^\s*(digite|comente|mande)\s+(\S+)\s+(.*)$/i.exec(label);
-  return match ? { verb: match[1].toUpperCase(), code: match[2], rest: match[3].toUpperCase() } : null;
+  const match = /^\s*(\d+)\s+(.*)$/.exec(label);
+  return match ? { code: match[1], rest: match[2].toUpperCase() } : null;
 }
 
 function Scoreboard({ state }: { state: ArenaState }) {
@@ -66,11 +66,11 @@ function CommandCards({ state }: { state: ArenaState }) {
       return <div key={candidate} className={`ro-call ${candidate}`}>
         <HeadBadge candidate={candidate} expression="shout" className="ro-call-head" />
         {parts
-          ? <p><span>{parts.verb}</span><b>{parts.code}</b><em>{parts.rest}</em></p>
+          ? <p><b>{parts.code}</b><em>{parts.rest}</em></p>
           : <p><em>{labels[candidate].toUpperCase()}</em></p>}
       </div>;
     })}
-    <div className="ro-gift-hint">🎁 Presentes da <b>esquerda</b> empurram o LULA · da <b>direita</b>, o BOLSONARO</div>
+    <div className="ro-gift-hint">🎁 Presentes da <b>esquerda</b> empurram o <b>13</b> · da <b>direita</b>, o <b>22</b></div>
   </section>;
 }
 
@@ -157,7 +157,7 @@ function Curtain({ state, seconds }: { state: ArenaState; seconds: number }) {
     return <div className="ro-curtain results">
       {winner && winner !== 'tie' && <HeadBadge candidate={winner} expression="joy" className="ro-curtain-head" />}
       <span>RESULTADO DA CORRIDA</span>
-      <h3>{winner === 'tie' ? 'EMPATE!' : `${winner === 'lula' ? 'LULA' : 'BOLSONARO'} VENCEU!`}</h3>
+      <h3>{winner === 'tie' ? 'EMPATE!' : `${winner === 'lula' ? '13' : '22'} VENCEU!`}</h3>
       <p>{game.roundWins.lula} <i>×</i> {game.roundWins.bolsonaro}</p>
     </div>;
   }
@@ -208,7 +208,6 @@ export function RaceOverlay({ state: source, seconds, connected, callout, muted,
 
     <header className="ro-top">
       <span className="ro-live"><i className={connected ? '' : 'off'} />AO VIVO</span>
-      <span className="ro-title">CORRIDA <em>PRESIDENCIAL</em></span>
       <span className="ro-timer">{formatTime(seconds)}<small className="ro-round">R{Math.max(1, state.roundNumber)}</small></span>
     </header>
 

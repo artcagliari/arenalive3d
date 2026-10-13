@@ -18,9 +18,9 @@ test('motor pontua, separa usuários únicos e persiste o estado', async () => {
   await new Promise(resolve => setTimeout(resolve, 650));
   assert.equal(engine.getState().phase, 'live');
   assert.ok(audioCues.some(cue => cue.trigger === 'race_start'));
-  assert.equal(engine.receive({ source: 'demo', type: 'comment', externalId: 'a', username: 'maria', comment: 'LULA' }).accepted, true);
-  assert.equal(engine.receive({ source: 'demo', type: 'comment', externalId: 'b', username: 'maria', comment: 'LULA' }).accepted, true);
-  assert.equal(engine.receive({ source: 'demo', type: 'comment', externalId: 'a', username: 'maria', comment: 'LULA' }).accepted, false);
+  assert.equal(engine.receive({ source: 'demo', type: 'comment', externalId: 'a', username: 'maria', comment: '13' }).accepted, true);
+  assert.equal(engine.receive({ source: 'demo', type: 'comment', externalId: 'b', username: 'maria', comment: '13' }).accepted, true);
+  assert.equal(engine.receive({ source: 'demo', type: 'comment', externalId: 'a', username: 'maria', comment: '13' }).accepted, false);
   assert.equal(engine.receive({ source: 'demo', type: 'gift', externalId: 'gift-a', username: 'joao', giftId: '__demo', forcedCandidate: 'lula' }).accepted, true);
   assert.ok(audioCues.some(cue => cue.trigger === 'gift_received'));
   assert.equal(engine.getState().lula.points, 12);
@@ -31,7 +31,7 @@ test('motor pontua, separa usuários únicos e persiste o estado', async () => {
   const reopened = new Store(filename);
   assert.equal(reopened.getRuntime<any>().lulaPoints, 12);
   const restoredEngine = new ArenaEngine(reopened, { phaseIntervalMs:20, gameIntervalMs:10 });
-  assert.equal(restoredEngine.receive({ source:'demo', type:'comment', externalId:'a', username:'maria', comment:'LULA' }).accepted, false);
+  assert.equal(restoredEngine.receive({ source:'demo', type:'comment', externalId:'a', username:'maria', comment:'13' }).accepted, false);
   assert.equal(restoredEngine.getState().lula.points, 12);
   assert.equal(restoredEngine.getDiagnostics().discardReasons.duplicado, 1);
   restoredEngine.shutdown();

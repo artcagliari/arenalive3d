@@ -45,6 +45,34 @@ O resultado fica em `deployment/seed-data/`. O snapshot preserva configurações
 
 O `Dockerfile` detectado automaticamente compila o frontend, inicia o servidor em `0.0.0.0:$PORT` e atende frontend, API e Socket.IO no mesmo domínio.
 
+## Corrida 100% automática
+
+Controlada pelo backend (`AUTO_RACE`, ligado por padrão; `AUTO_RACE=false` volta ao modo manual).
+
+- Ao iniciar, qualquer estado herdado do volume (pausa, emergência, rodada interrompida) é descartado e uma rodada nova abre com ambos em 0%.
+- Ciclo: abertura 5 s → corrida de até 5 min (100% encerra na hora; no tempo vence quem está à frente) → resultado 10 s → intervalo 2 s → nova rodada.
+- "Encerrar ciclo" e desligar o modo automático são ignorados; pausa do operador volta sozinha em 120 s; só a parada de emergência é manual (e é limpa ao reiniciar).
+- Sem comentários nem presentes a corrida anda no ritmo normal. Os eventos aleatórios de pista (arrancada, tropeço, impulso, escudo) ficam **desligados** por padrão; `AUTO_RACE_EVENTS=true` os liga (contados à parte, nunca aparecem como presentes). Impulsos vêm de comentários e presentes.
+- Os tempos acima são aplicados uma única vez ao banco existente (marca `auto_race_5min_defaults`); depois podem ser ajustados no painel.
+
+## Presentes reais do TikTok (listener persistente)
+
+O listener roda dentro do próprio servidor (`server/tiktok.ts`), sem depender de navegador, painel ou TikTok LIVE Studio. Usa `tiktok-live-connector` 2.5.0, **integração não oficial** que pode falhar a qualquer mudança do TikTok.
+
+Variáveis (somente quando for ativar de fato; a alteração reinicia o serviço):
+
+```dotenv
+TIKTOK_USERNAME=<conta transmissora, sem @>
+TIKTOK_AUTO_CONNECT=true
+```
+
+- Início: automático no boot do servidor (`npm start`) quando `TIKTOK_AUTO_CONNECT=true`; ou pelo botão Conectar do painel / `POST /api/tiktok/connect` (idempotente).
+- Um listener por sala: trava (lease) no SQLite do volume; outra instância fica em `standby`.
+- LIVE offline: estado `offline` e novas tentativas com espera crescente (15 s a 120 s). Após o TikTok encerrar a LIVE, tenta de novo a cada 60 s.
+- Presentes sem `giftId` cadastrado ficam `pendentes` no histórico (`GET /api/tiktok/gifts`) e não acionam nada. Cadastre o ID no painel de presentes.
+- `GET /api/tiktok/catalog` sugere IDs por nome idêntico no catálogo da sala; `POST /api/tiktok/catalog/apply` aplica as sugestões (apenas em presentes sem ID).
+- Logs no Railway: procure por `TikTok:` (`railway logs --service arena | grep "TikTok:"`). Cookies, tokens e o objeto bruto do TikTok não são registrados.
+
 ## Endereços após gerar o domínio
 
 Substitua `<dominio>` pelo domínio entregue pelo Railway:
